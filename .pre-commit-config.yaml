@@ -1,3 +1,5 @@
+exclude: "^tests/precommit_negative_example\\.py$"
+
 repos:
   - repo: https://github.com/psf/black
     rev: 24.8.0
@@ -15,6 +17,7 @@ repos:
     hooks:
       - id: ruff
         args: ["--fix"]
+        exclude: "^src/pandas/partie2\\.ipynb$"
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/pre-commit-hooks

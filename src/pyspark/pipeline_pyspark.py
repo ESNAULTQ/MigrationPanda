@@ -6,9 +6,10 @@ from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import yaml
+
 from pyspark.sql import DataFrame, SparkSession, Window
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
@@ -66,7 +67,8 @@ def _write_dataframe_to_sqlite(df: DataFrame, table: str, db_path: Path) -> None
     with sqlite3.connect(db_path) as conn:
         conn.execute(f"DROP TABLE IF EXISTS {table}")
         col_defs = ", ".join(
-            f"{field.name} {_spark_to_sqlite_type(field.dataType)}" for field in schema.fields
+            f"{field.name} {_spark_to_sqlite_type(field.dataType)}"
+            for field in schema.fields
         )
         conn.execute(f"CREATE TABLE {table} ({col_defs})")
         if rows:
@@ -136,7 +138,9 @@ def _write_daily_csvs(
         ),
     )
     all_path = output_dir / "daily_summary_all.csv"
-    _write_rows_to_csv(sorted_rows, columns, all_path, sep, encoding, float_format, float_cols)
+    _write_rows_to_csv(
+        sorted_rows, columns, all_path, sep, encoding, float_format, float_cols
+    )
     by_date = defaultdict(list)
     for row in sorted_rows:
         by_date[row.get("date")].append(row)
@@ -145,7 +149,9 @@ def _write_daily_csvs(
             continue
         token = date_value.replace("-", "")
         day_path = output_dir / f"daily_summary_{token}.csv"
-        _write_rows_to_csv(subset, columns, day_path, sep, encoding, float_format, float_cols)
+        _write_rows_to_csv(
+            subset, columns, day_path, sep, encoding, float_format, float_cols
+        )
 
 
 def run_pipeline(settings_path: str | Path = "settings.yaml") -> list[dict]:
@@ -183,14 +189,16 @@ def run_pipeline(settings_path: str | Path = "settings.yaml") -> list[dict]:
 
     try:
         customers_df = (
-            spark.read.option("header", True).csv(str(customers_path))
+            spark.read.option("header", True)
+            .csv(str(customers_path))
             .withColumn("is_active", bool_udf(F.col("is_active")))
             .withColumn("customer_id", F.col("customer_id").cast("string"))
             .withColumn("city", F.col("city").cast("string"))
         )
 
         refunds_df = (
-            spark.read.option("header", True).csv(str(refunds_path))
+            spark.read.option("header", True)
+            .csv(str(refunds_path))
             .withColumn("order_id", F.col("order_id").cast("string"))
             .withColumn(
                 "amount",
@@ -199,12 +207,13 @@ def run_pipeline(settings_path: str | Path = "settings.yaml") -> list[dict]:
             .withColumn("created_at", F.col("created_at").cast("string"))
         )
 
-        orders_df = spark.read.option("multiline", True).json([str(path) for path in order_paths])
+        orders_df = spark.read.option("multiline", True).json(
+            [str(path) for path in order_paths]
+        )
         paid_orders = orders_df.filter(F.lower(F.col("payment_status")) == "paid")
         exploded = paid_orders.withColumn("item", F.explode("items"))
         orders_items = (
-            exploded
-            .withColumn("item_qty_raw", F.col("item.qty"))
+            exploded.withColumn("item_qty_raw", F.col("item.qty"))
             .withColumn("item_unit_price_raw", F.col("item.unit_price"))
             .withColumn("item_sku", F.col("item.sku"))
             .drop("item")
@@ -222,7 +231,9 @@ def run_pipeline(settings_path: str | Path = "settings.yaml") -> list[dict]:
             )
             .withColumn(
                 "item_unit_price",
-                F.coalesce(F.expr("try_cast(item_unit_price_raw as double)"), F.lit(0.0)),
+                F.coalesce(
+                    F.expr("try_cast(item_unit_price_raw as double)"), F.lit(0.0)
+                ),
             )
             .drop("item_qty_raw", "item_unit_price_raw")
         )
@@ -264,14 +275,18 @@ def run_pipeline(settings_path: str | Path = "settings.yaml") -> list[dict]:
             customers_df.select("customer_id", "city", "is_active"),
             on="customer_id",
             how="left",
-        ).filter(F.col("is_active") == True)  # noqa: E712
+        ).filter(F.col("is_active"))
 
-        per_order = per_order.withColumn("order_date", order_date_udf(F.col("created_at")))
+        per_order = per_order.withColumn(
+            "order_date", order_date_udf(F.col("created_at"))
+        )
 
         refunds_sum = refunds_df.groupBy("order_id").agg(
             F.sum("amount").alias("refunds_eur")
         )
-        per_order = per_order.join(refunds_sum, on="order_id", how="left").fillna({"refunds_eur": 0.0})
+        per_order = per_order.join(refunds_sum, on="order_id", how="left").fillna(
+            {"refunds_eur": 0.0}
+        )
 
         per_order_save = per_order.select(
             "order_id",
@@ -293,7 +308,9 @@ def run_pipeline(settings_path: str | Path = "settings.yaml") -> list[dict]:
                 F.sum("gross_revenue_eur").alias("gross_revenue_eur"),
                 F.sum("refunds_eur").alias("refunds_eur"),
             )
-            .withColumn("net_revenue_eur", F.col("gross_revenue_eur") + F.col("refunds_eur"))
+            .withColumn(
+                "net_revenue_eur", F.col("gross_revenue_eur") + F.col("refunds_eur")
+            )
             .withColumnRenamed("order_date", "date")
             .orderBy("date", "city", "channel")
         )

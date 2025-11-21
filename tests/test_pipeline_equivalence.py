@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
+
+# ruff: noqa: E402
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -11,7 +14,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import pandas as pd
 import pandas.testing as pdt
-
 from src.pandas.pipeline_pandas import run_pipeline as run_pandas_pipeline
 from src.pyspark.pipeline_pyspark import run_pipeline as run_spark_pipeline
 
@@ -101,7 +103,9 @@ def _create_dataset(base_dir: Path) -> None:
     _write_json(input_dir / "orders_2025-03-02.json", orders_day2)
 
 
-def _write_settings(path: Path, input_dir: Path, output_dir: Path, db_path: Path) -> None:
+def _write_settings(
+    path: Path, input_dir: Path, output_dir: Path, db_path: Path
+) -> None:
     content = (
         f"input_dir: {input_dir}\n"
         f"output_dir: {output_dir}\n"
@@ -172,14 +176,20 @@ def run_equivalence_check(
 def compare_dataframes(
     pandas_df: pd.DataFrame, spark_df: pd.DataFrame, *, verbose: bool = True
 ) -> tuple[bool, list[str]]:
+    # Normalise certains dtypes pour éviter les faux positifs (string vs object).
+    pandas_df = pandas_df.copy()
+    spark_df = spark_df.copy()
+    if "city" in pandas_df.columns and "city" in spark_df.columns:
+        pandas_df["city"] = pandas_df["city"].astype("string[python]")
+        spark_df["city"] = spark_df["city"].astype("string[python]")
+
     issues: list[str] = []
 
     pandas_cols = list(pandas_df.columns)
     spark_cols = list(spark_df.columns)
     if pandas_cols != spark_cols:
         issues.append(
-            "Colonnes différentes : "
-            f"pandas={pandas_cols}, spark={spark_cols}"
+            "Colonnes différentes : " f"pandas={pandas_cols}, spark={spark_cols}"
         )
 
     if len(pandas_df) != len(spark_df):
@@ -200,8 +210,7 @@ def compare_dataframes(
             pandas_type = pandas_dtypes.get(col)
             spark_type = spark_dtypes.get(col)
             string_equiv = (
-                pandas_type in {"string", "string[python]"}
-                and spark_type == "object"
+                pandas_type in {"string", "string[python]"} and spark_type == "object"
             )
             if string_equiv:
                 if verbose:
@@ -243,14 +252,9 @@ if __name__ == "__main__":
         base_dir = Path(tmp_dir)
         pandas_sorted, spark_sorted = run_equivalence_check(base_dir, verbose=True)
         print("[equivalence-test] Vérification finale…")
-        ok, issues = compare_dataframes(
-            pandas_sorted, spark_sorted, verbose=True
-        )
+        ok, issues = compare_dataframes(pandas_sorted, spark_sorted, verbose=True)
         if not ok:
-            raise SystemExit(
-                "[equivalence-test] ❌ Échec : "
-                + " ; ".join(issues)
-            )
+            raise SystemExit("[equivalence-test] ❌ Échec : " + " ; ".join(issues))
         print(
             "[equivalence-test] ✅ Pipelines pandas et Spark produisent des résultats équivalents."
         )

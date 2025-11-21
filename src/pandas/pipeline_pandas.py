@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-import pandas as pd
 import yaml
+
+import pandas as pd
 
 
 def load_settings(path: str | Path = "settings.yaml") -> dict:
@@ -151,9 +153,7 @@ def run_pipeline(settings_path: str | Path = "settings.yaml") -> pd.DataFrame:
     with sqlite3.connect(db_path) as conn:
         per_order_save.to_sql("orders_clean", conn, if_exists="replace", index=False)
 
-    agg = per_order.groupby(
-        ["order_date", "city", "channel"], as_index=False
-    ).agg(
+    agg = per_order.groupby(["order_date", "city", "channel"], as_index=False).agg(
         orders_count=("order_id", "nunique"),
         unique_customers=("customer_id", "nunique"),
         items_sold=("items_sold", "sum"),
@@ -193,7 +193,9 @@ def run_pipeline(settings_path: str | Path = "settings.yaml") -> pd.DataFrame:
         )
 
     all_path = output_dir / "daily_summary_all.csv"
-    agg.to_csv(all_path, index=False, sep=sep, encoding=encoding, float_format=float_format)
+    agg.to_csv(
+        all_path, index=False, sep=sep, encoding=encoding, float_format=float_format
+    )
     return agg
 
 
